@@ -3,7 +3,7 @@ import java.net.*;
 import java.util.Scanner;
 
 public class DirectChatClient {
-    private static int port;
+    private static final String EXIT_COMMAND = "/exit";
 
     public static void main(String[] args) {
         Scanner keyboard = new Scanner(System.in);
@@ -48,12 +48,13 @@ public class DirectChatClient {
     }
 
     private static void startClient(String friendAddress, int friendPort) {
-        try (Socket friendSocket = new Socket(friendAddress, friendPort);
-             BufferedReader input = new BufferedReader(new InputStreamReader(friendSocket.getInputStream()));
-             PrintWriter output = new PrintWriter(friendSocket.getOutputStream(), true);
-             Scanner userEntry = new Scanner(System.in)) {
-
-            System.out.println("\n* Connected to friend. *");
+        try (
+                Socket friendSocket = new Socket(friendAddress, friendPort);
+                BufferedReader input = new BufferedReader(new InputStreamReader(friendSocket.getInputStream()));
+                PrintWriter output = new PrintWriter(friendSocket.getOutputStream(), true);
+                Scanner userEntry = new Scanner(System.in)
+        ) {
+            System.out.println("\n* Connected to friend. Type '/exit' to end the chat. *");
 
             // Read messages from the friend in a separate thread
             new Thread(() -> {
@@ -61,6 +62,10 @@ public class DirectChatClient {
                     String friendResponse;
                     while ((friendResponse = input.readLine()) != null) {
                         System.out.println("Friend: " + friendResponse);
+                        if (friendResponse.equals(EXIT_COMMAND)) {
+                            closeConnection(friendSocket, input, output);
+                            return;
+                        }
                     }
                 } catch (IOException e) {
                     e.printStackTrace();
@@ -70,13 +75,28 @@ public class DirectChatClient {
             // Send messages to the friend
             String userInput;
             while ((userInput = userEntry.nextLine()) != null) {
+                if (userInput.equals(EXIT_COMMAND)) {
+                    output.println(" User closed connecton: " + EXIT_COMMAND);
+                    closeConnection(friendSocket, input, output);
+                    return;
+                }
                 output.println(userInput);
             }
-
         } catch (IOException e) {
             e.printStackTrace();
-        } finally {
+        }
+    }
+
+
+    private static void closeConnection(Socket socket, BufferedReader input, PrintWriter output) {
+        try {
+            input.close();
+            output.close();
+            socket.close();
             System.out.println("\n* Connection closed. *");
+            System.exit(0);
+        } catch (IOException e) {
+            e.printStackTrace();
         }
     }
 
